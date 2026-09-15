@@ -1,0 +1,100 @@
+# ThemeCore 双方案编译（rootless + roothide）
+#
+# 说明：
+#   - rootless（Dopamine / palera1n，iOS 15+）：标准 Theos，THEOS_PACKAGE_SCHEME=rootless
+#     → 安装前缀 /var/jb，包架构 iphoneos-arm64，无 Pre-Depends
+#   - roothide（roothide Bootstrap，iPhone 14 Pro Max 等）：roothide/Theos 分支，
+#     THEOS_PACKAGE_SCHEME=roothide → 包架构 iphoneos-arm64e，
+#     install_name 使用 @loader_path/.jbroot，Pre-Depends rootless-compat
+#   - 必须用 macOS runner：arm64e 新 ABI 需要 Xcode 的 ld64（未开源，Linux 无法构建）
+#   - SDK 来自 theos/sdks（iPhoneOS16.5.sdk，部署目标 iOS 15.0）
+
+name: Build ThemeCore
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.scheme }})
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scheme: rootless
+            theos_repo: theos/theos
+            theos_dir: theos
+            control_file: control.rootless
+            artifact_name: ThemeCore-0.3-rootless
+          - scheme: roothide
+            theos_repo: roothide/Theos
+            theos_dir: theos-roothide
+            control_file: control
+            artifact_name: ThemeCore-0.3-roothide
+
+    env:
+      THEOS: ${{ github.workspace }}/${{ matrix.theos_dir }}
+      THEOS_PACKAGE_SCHEME: ${{ matrix.scheme }}
+      THEOS_SDK: iPhoneOS16.5.sdk
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Checkout Theos (${{ matrix.scheme }})
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.theos_repo }}
+          ref: master
+          path: ${{ matrix.theos_dir }}
+          submodules: recursive
+
+      - name: Checkout iOS SDK (sparse)
+        uses: actions/checkout@v4
+        with:
+          repository: theos/sdks
+          path: sdks
+          sparse-checkout: ${{ env.THEOS_SDK }}
+
+      - name: Install dependencies
+        run: brew install make xz ldid
+
+      - name: Install SDK into Theos
+        run: |
+          mkdir -p "$THEOS/sdks"
+          cp -R "$GITHUB_WORKSPACE/sdks/$THEOS_SDK" "$THEOS/sdks/$THEOS_SDK"
+          ls -la "$THEOS/sdks"
+
+      - name: Select control file for scheme
+        run: |
+          # 默认 control 为 roothide 变体；rootless 构建时换成 control.rootless
+          if [ "${{ matrix.control_file }}" != "control" ]; then
+            mv control "control.roothide"
+            mv "${{ matrix.control_file }}" control
+          fi
+          grep -E "^(Package|Version|Architecture|Depends|Pre-Depends)" control || true
+
+      - name: Build package (${{ matrix.scheme }})
+        run: gmake clean package FINALPACKAGE=1
+
+      - name: Rename artifact
+        run: |
+          ls -la packages/
+          mv packages/*.deb "$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.deb"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.deb
+          if-no-files-found: error
+
