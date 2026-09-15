@@ -3,6 +3,11 @@
 #import <objc/runtime.h>
 #import <notify.h>
 
+// theos 精简版 Preferences 头未声明 -setSpecifiers:animated:（运行时存在），补声明
+@interface PSListController (TCCompat)
+- (void)setSpecifiers:(NSArray *)specifiers animated:(BOOL)animated;
+@end
+
 #pragma mark - rootless 路径换算（与 postinst 探测逻辑一致）
 
 static NSString *TCRootPath(NSString *path) {
@@ -171,7 +176,7 @@ static NSString *const TCReloadDarwinName = @"com.susudear.themecore.reload";
                                                                   set:NULL
                                                                   get:NULL
                                                               detail:Nil
-                                                                cell:PSTitleValueCellSpecifier
+                                                                cell:PSTitleValueCell
                                                                 edit:Nil];
         [specs addObject:noTheme];
     } else {
@@ -184,7 +189,7 @@ static NSString *const TCReloadDarwinName = @"com.susudear.themecore.reload";
                                                                       set:@selector(setTheme:specifier:)
                                                                       get:@selector(getTheme:)
                                                                   detail:Nil
-                                                                    cell:PSSwitchCellSpecifier
+                                                                    cell:PSSwitchCell
                                                                     edit:Nil];
                 spec.identifier = item.name;
                 [spec setProperty:item forKey:@"tc_item"];
