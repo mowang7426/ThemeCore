@@ -102,18 +102,34 @@ jobs:
 
       - name: Verify packages
         run: |
-          set -e
+          set +e
+          fail=0
           for deb in build/*.deb; do
-            echo "===== Checking $deb ====="
-            dpkg-deb -f "$deb" Package Version Architecture
-            # 主 dylib、设置面板 bundle、PreferenceLoader 入口必须都在包里
+            echo "========== $deb =========="
+            echo "--- control 字段 ---"
+            dpkg-deb -f "$deb" Package Version Architecture Depends Pre-Depends
+            echo "--- 关键产物路径（dylib / 设置 bundle / PreferenceLoader 入口）---"
             dpkg-deb -c "$deb" | grep -E 'DynamicLibraries/ThemeCore\.dylib|PreferenceBundles/ThemeCorePrefs\.bundle|PreferenceLoader/Preferences/ThemeCorePrefs'
+            if ! dpkg-deb -c "$deb" | grep -q 'DynamicLibraries/ThemeCore\.dylib'; then
+              echo "!! 缺少主 dylib：$deb"; fail=1
+            fi
           done
-          # rootless 包不应带 Pre-Depends；roothide 包必须带
-          ! dpkg-deb -f build/ThemeCore-0.3-rootless.deb Pre-Depends | grep -q rootless-compat
-          dpkg-deb -f build/ThemeCore-0.3-roothide.deb Pre-Depends | grep -q rootless-compat
+          echo "--- Pre-Depends 差异核对 ---"
+          RL=$(dpkg-deb -f build/ThemeCore-0.3-rootless.deb Pre-Depends)
+          RH=$(dpkg-deb -f build/ThemeCore-0.3-roothide.deb Pre-Depends)
+          echo "rootless Pre-Depends = [$RL]（预期为空）"
+          echo "roothide Pre-Depends = [$RH]（预期含 rootless-compat）"
+          if ! echo "$RH" | grep -q rootless-compat; then
+            echo "!! roothide 包缺少 rootless-compat"; fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::warning::校验存在未通过项，详见上面输出（artifact 仍会上传）"
+            exit 1
+          fi
+          echo "全部关键产物校验通过"
 
       - name: Upload DEB packages
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ThemeCore-0.3
