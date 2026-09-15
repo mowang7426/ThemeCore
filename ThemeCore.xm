@@ -24,6 +24,42 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <QuartzCore/QuartzCore.h>
 
+#pragma mark - 私有类接口桩
+// Logos 只会为 %hook 的类生成 @class 前向声明，编译器不知道父类，
+// 直接在 hook 内给 self 发消息（respondsToSelector: / .image / 传 UIView* 参数）会报
+// “receiver type is a forward declaration”。这里声明最小接口桩（只给父类与用到的成员）。
+
+@interface SBHIconImageCache : NSObject @end
+@interface SBApplicationIcon : NSObject @end
+@interface SBIconView : UIView @end
+@interface SBFolderIconView : UIView @end
+@interface SBHClockApplicationIconImageView : UIImageView @end
+@interface SBClockApplicationIconImageView : UIImageView @end
+@interface SBHCalendarApplicationIcon : NSObject @end
+@interface SBCalendarApplicationIcon : NSObject @end
+@interface SBHLibraryPodCategoryIcon : NSObject @end
+@interface NCNotificationRequest : NSObject @end
+@interface SBHIconTableViewCell : UITableViewCell @end
+@interface LSApplicationProxy : NSObject @end
+@interface UIAirDropActivity : UIActivity @end
+@interface WGWidgetHostingViewController : UIViewController @end
+@interface ISGenerationRequest : NSObject @end
+@interface SBIconController : NSObject
++ (instancetype)sharedInstance;
+@end
+
+// id / Class 上调用的私有选择器统一在 NSObject 分类里声明，避免
+// “no known instance/class method for selector” 编译错误（运行时解析）。
+@interface NSObject (TCPrivateSelectors)
++ (instancetype)sharedInstance;
+- (void)reloadIconImage;
+- (void)enumerateDisplayedIconViewsUsingBlock:(void (^)(id iconView))block;
+- (instancetype)initWithCGImage:(CGImageRef)cgImage
+                          scale:(CGFloat)scale
+                    minimumSize:(CGSize)minimumSize
+                    placeholder:(BOOL)placeholder;
+@end
+
 static NSString *const kTCReloadDarwinName = @"com.susudear.themecore.reload";
 
 static void TCThemeReloadCallback(CFNotificationCenterRef center, void *observer,
