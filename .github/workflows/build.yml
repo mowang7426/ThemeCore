@@ -58,6 +58,8 @@ jobs:
           mkdir -p build
           # 备份 roothide 变体 control（含 Pre-Depends rootless-compat）
           cp control build/control.roothide
+          # 清掉 PreferenceLoader 入口目录里误混入的非 plist 杂文件（如名为 1 的空文件）
+          find layout/Library/PreferenceLoader -type f ! -name '*.plist' -print -delete 2>/dev/null || true
 
       - name: Use rootless control
         run: |
@@ -109,8 +111,10 @@ jobs:
             echo "--- control 字段 ---"
             dpkg-deb -f "$deb" Package Version Architecture Depends Pre-Depends
             echo "--- 关键产物路径（dylib / 设置 bundle / PreferenceLoader 入口）---"
-            dpkg-deb -c "$deb" | grep -E 'DynamicLibraries/ThemeCore\.dylib|PreferenceBundles/ThemeCorePrefs\.bundle|PreferenceLoader/Preferences/ThemeCorePrefs'
-            if ! dpkg-deb -c "$deb" | grep -q 'DynamicLibraries/ThemeCore\.dylib'; then
+            # 先落盘再 grep，避免管道提前关闭触发 tar: Broken pipe
+            dpkg-deb -c "$deb" > /tmp/payload.txt
+            grep -E 'DynamicLibraries/ThemeCore\.dylib|PreferenceBundles/ThemeCorePrefs\.bundle/ThemeCorePrefs$|PreferenceLoader/Preferences/ThemeCorePrefs/Root\.plist' /tmp/payload.txt
+            if ! grep -q 'DynamicLibraries/ThemeCore\.dylib' /tmp/payload.txt; then
               echo "!! 缺少主 dylib：$deb"; fail=1
             fi
           done
