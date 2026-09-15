@@ -28,7 +28,10 @@ ThemeCorePrefs_FILES = ThemeCorePrefs/TCRootListController.m \
 
 ThemeCorePrefs_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
 ThemeCorePrefs_FRAMEWORKS = UIKit Foundation CoreGraphics QuartzCore
-ThemeCorePrefs_PRIVATE_FRAMEWORKS = Preferences
+# iPhoneOS16.5 SDK 不含私有框架 Preferences 的 .tbd（ld: framework 'Preferences' not found）。
+# 设置 bundle 由 Preferences 进程加载，PSListController/PSSpecifier 运行时已在进程内，
+# 头文件用 theos 精简头编译，符号改为运行时动态查找即可，无需链接该框架。
+ThemeCorePrefs_LDFLAGS = -undefined dynamic_lookup
 ThemeCorePrefs_INSTALL_PATH = /Library/PreferenceBundles
 
 include $(THEOS_MAKE_PATH)/bundle.mk
