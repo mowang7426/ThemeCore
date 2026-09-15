@@ -1,0 +1,12 @@
+Package: com.susudear.themecore
+Name: ThemeCore
+Version: 0.3
+Architecture: iphoneos-arm64e
+Description: 轻量化桌面图标主题插件（独立重写实现），修改图标及图标阴影如此轻松，覆盖绝大部分区域，时钟日历可动态图标。
+Maintainer: SuSuDear
+Author: SuSuDear
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000), preferenceloader, firmware (>= 15.0)
+Pre-Depends: rootless-compat (>= 0.9)
+Installed-Size: 736
+Icon: https://repo.susubaby.cn/icons/ThemeCore.png

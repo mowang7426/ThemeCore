@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -u
+
+if [ "${1:-configure}" != "configure" ]; then
+    exit 0
+fi
+
+# rootless 环境下确定根前缀
+ROOT_PREFIX=""
+if [ -d /var/jb ]; then
+    ROOT_PREFIX="/var/jb"
+else
+    for candidate in /var/containers/Bundle/Application/.jbroot-*; do
+        if [ -d "$candidate" ]; then
+            ROOT_PREFIX="$candidate"
+            break
+        fi
+    done
+fi
+
+# 确保主题目录与偏好目录存在（首装时创建）
+THEMES_DIR="$ROOT_PREFIX/Library/Themes"
+PREFERENCES_DIR="$ROOT_PREFIX/var/mobile/Library/Preferences"
+mkdir -p "$THEMES_DIR" >/dev/null 2>&1 || true
+chown mobile:mobile "$THEMES_DIR" >/dev/null 2>&1 || true
+chmod 0775 "$THEMES_DIR" >/dev/null 2>&1 || true
+mkdir -p "$PREFERENCES_DIR" >/dev/null 2>&1 || true
+chown mobile:mobile "$PREFERENCES_DIR" >/dev/null 2>&1 || true
+chmod 0775 "$PREFERENCES_DIR" >/dev/null 2>&1 || true
+
+# 通知相关守护进程刷新图标缓存
+if command -v killall >/dev/null 2>&1; then
+    killall sharingd >/dev/null 2>&1 || true
+    killall iconservicesagent >/dev/null 2>&1 || true
+fi
+
+exit 0
