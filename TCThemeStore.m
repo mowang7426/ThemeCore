@@ -40,6 +40,10 @@ static NSString *const TCEnabledKey        = @"Enabled";
 static NSString *const TCActiveThemeKey    = @"ActiveTheme";
 static NSString *const TCEnabledThemesKey  = @"EnabledThemes";
 
+// Darwin 通知回调在 init 前声明，避免 C99/Clang 下“undeclared identifier”编译错误。
+static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *observer,
+                                        CFStringRef name, const void *object, CFDictionaryRef userInfo);
+
 @interface TCThemeStore ()
 @property (nonatomic, strong) NSCache<NSString *, UIImage *> *imageCache;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *mIconPaths;
@@ -49,6 +53,7 @@ static NSString *const TCEnabledThemesKey  = @"EnabledThemes";
 @property (nonatomic, strong) NSMutableArray<TCTheme *> *mThemes;
 @property (nonatomic, strong) dispatch_source_t memoryPressureSource;
 @property (nonatomic, assign) NSUInteger generation;   // 每次 reload 自增，用于缓存键失效
+@property (nonatomic, assign) BOOL mergedModern;
 @end
 
 @implementation TCTheme
@@ -163,7 +168,7 @@ static NSString *const TCEnabledThemesKey  = @"EnabledThemes";
         _mThemes = [NSMutableArray array];
 
         // 读取偏好
-        NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:TCRootPath(TCPreferencesPath)];
+        NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:TCPreferencesPath];
         _enabled = [prefs[TCEnabledKey] boolValue];
         _activeTheme = [prefs[TCActiveThemeKey] copy];
         _enabledThemes = [prefs[TCEnabledThemesKey] isKindOfClass:NSArray.class]
@@ -204,7 +209,7 @@ static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *obs
 #pragma mark - 主题扫描与合并
 
 - (void)reload {
-    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:TCRootPath(TCPreferencesPath)];
+    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:TCPreferencesPath];
     self.enabled = [prefs[TCEnabledKey] boolValue];
     self.activeTheme = [prefs[TCActiveThemeKey] copy];
     self.enabledThemes = [prefs[TCEnabledThemesKey] isKindOfClass:NSArray.class]
@@ -234,10 +239,9 @@ static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *obs
     [self.mClockPaths removeAllObjects];
     [self.mShadowPaths removeAllObjects];
     [self.mThemeInfo removeAllObjects];
+    self.mergedModern = NO;
 
-    BOOL shadowEnabled = NO;
-    BOOL modern = NO;
-    // 启用顺序：EnabledThemes 数组顺序，最后一个为 ActiveTheme（最上层）
+        // 启用顺序：EnabledThemes 数组顺序，最后一个为 ActiveTheme（最上层）
     NSMutableArray<NSString *> *order = [self.enabledThemes mutableCopy] ?: [NSMutableArray array];
     if (self.activeTheme && ![order containsObject:self.activeTheme]) {
         [order addObject:self.activeTheme];
@@ -249,8 +253,7 @@ static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *obs
             if ([t.name isEqualToString:themeName]) { theme = t; break; }
         }
         if (!theme) continue;
-        if (theme.modern) modern = YES;
-        if (theme.hasShadow) shadowEnabled = YES;
+        if (theme.modern) self.mergedModern = YES;
         [self _mergeTheme:theme storeDir:storeDir];
         // 合并 Info.plist 元信息
         NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:
@@ -312,7 +315,7 @@ static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *obs
         NSString *src = [theme _findClockFileForKey:key];
         if (src) {
             [self _storeClockPath:src storeDir:storeDir key:key modern:theme.modern
-                          inTable:self.mClockPaths overrideExisting:NO];
+                          inTable:self.mClockPaths overrideExisting:YES];
         }
     }
 
@@ -430,7 +433,7 @@ static void TCThemeStoreDarwinCallback(CFNotificationCenterRef center, void *obs
 }
 
 - (BOOL)isModern {
-    return self.enabled;
+    return self.enabled && self.mergedModern;
 }
 
 - (NSArray<TCTheme *> *)themes {

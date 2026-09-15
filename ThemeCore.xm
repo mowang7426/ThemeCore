@@ -26,6 +26,9 @@
 
 static NSString *const kTCReloadDarwinName = @"com.susudear.themecore.reload";
 
+static void TCThemeReloadCallback(CFNotificationCenterRef center, void *observer,
+                                  CFStringRef name, const void *object, CFDictionaryRef userInfo);
+
 #pragma mark - 工具函数
 
 /// 从任意 icon 对象安全取出 bundle id
