@@ -97,4 +97,3 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_name }}.deb
           if-no-files-found: error
-
