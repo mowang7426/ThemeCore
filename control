@@ -8,5 +8,4 @@ Author: SuSuDear
 Section: Tweaks
 Depends: mobilesubstrate (>= 0.9.5000), preferenceloader, firmware (>= 15.0)
 Pre-Depends: rootless-compat (>= 0.9)
-Installed-Size: 736
 Icon: https://repo.susubaby.cn/icons/ThemeCore.png
