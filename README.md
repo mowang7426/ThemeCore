@@ -20,49 +20,51 @@
 
 ## 编译（GitHub Actions，推荐）
 
-仓库内置 `.github/workflows/build.yml`，push 到 main / 打 tag `v*` / 手动触发（Actions 页 → Run workflow）即自动构建两个 deb：
+仓库内置 `.github/workflows/build.yml`，在 Actions 页手动 Run workflow（`workflow_dispatch`）即自动构建两个 deb。
+单个 job 顺序构建：先 rootless，再 roothide，**两个 scheme 都用 RootHide Theos 分支**（该分支同时支持 rootless/roothide）。
 
-| Scheme | Theos | 包架构 | 安装位置 | 说明 |
+| Scheme | 命令 | 包架构 | 安装位置 | 说明 |
 |---|---|---|---|---|
-| rootless | 标准 theos（theos/theos） | iphoneos-arm64 | /var/jb | Dopamine / palera1n，无 Pre-Depends |
-| roothide | roothide/Theos 分支 | iphoneos-arm64e | jbroot（bind mount 到根路径） | 带 `Pre-Depends: rootless-compat (>= 0.9)` |
+| rootless | `THEOS_PACKAGE_SCHEME=rootless make package` | iphoneos-arm64 | /var/jb | Dopamine / palera1n，无 Pre-Depends |
+| roothide | `THEOS_PACKAGE_SCHEME=roothide make package` | iphoneos-arm64e | jbroot（bind mount 到根路径） | 带 `Pre-Depends: rootless-compat (>= 0.9)` |
 
-产物在 Actions 页的 Artifacts 里下载：
+产物在 Actions 页的 Artifacts（`ThemeCore-0.3`）里下载：
 `ThemeCore-0.3-rootless.deb` 与 `ThemeCore-0.3-roothide.deb`。
 
 要点：
-- 必须用 **macOS runner**：arm64e 新 ABI 依赖 Xcode 的 ld64（未开源，Linux 编不了 arm64e）；
-- SDK 来自 `theos/sdks`（sparse checkout `iPhoneOS16.5.sdk`，部署目标 iOS 15.0）；
-- rootless 与 roothide 使用不同的 control 文件（`control` = roothide 变体，`control.rootless` = rootless 变体），工作流在构建前自动切换。
+- 必须用 **macOS runner（macos-14）**：arm64e 新 ABI 依赖 Xcode 的 ld64（未开源，Linux 编不了 arm64e）；
+- 工作流用 `git clone` 安装 RootHide Theos，再 sparse clone `theos/sdks` 的 `iPhoneOS16.5.sdk`（部署目标 iOS 15.0）；
+- 两个方案使用不同 control：构建 rootless 前换成 `control.rootless`（无 Pre-Depends），构建 roothide 前还原 `control`（带 rootless-compat）；
+- 最后用 `dpkg-deb` 校验主 dylib、设置面板 bundle、PreferenceLoader 入口都在包里，并核对 Pre-Depends 差异。
 
 ## 编译（本地 macOS）
 
-依赖：Theos（标准版 + roothide 分支）+ iOS SDK，安装方式：
+只需安装一份 RootHide Theos（同时支持两个 scheme）+ iOS SDK：
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
 ```
 
 然后：
 
 ```sh
-# 双方案一起构建
+# 双方案一起构建（产物在 build/）
 ./build.sh
 # 或单独构建
 ./build.sh rootless
 ./build.sh roothide
 ```
 
-产物在 `packages/`。手动等价命令：
+手动等价命令：
 
 ```sh
-# rootless（标准 Theos）
-mv control control.roothide && cp control.rootless control
-THEOS=$HOME/theos gmake clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+# rootless
+cp control.rootless control
+THEOS_PACKAGE_SCHEME=rootless make clean package FINALPACKAGE=1
 
-# roothide（roothide Theos，control 默认即 roothide 变体）
-THEOS=$HOME/theos-roothide gmake clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+# roothide（还原带 Pre-Depends 的 control）
+cp /tmp/themecore-control.roothide control
+THEOS_PACKAGE_SCHEME=roothide make clean package FINALPACKAGE=1
 ```
 
 ## 在设备上安装（roothide，iPhone 14 Pro Max）
