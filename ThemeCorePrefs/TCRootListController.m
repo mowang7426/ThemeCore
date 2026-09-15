@@ -2,27 +2,6 @@
 #import <objc/runtime.h>
 #import <notify.h>
 
-#pragma mark - rootless 路径换算（与 postinst 探测逻辑一致）
-
-static NSString *TCRootPath(NSString *path) {
-    // 只有越狱根目录下的 /Library 路径需要映射；用户偏好位于真实的 /var/mobile。
-    if (![path hasPrefix:@"/Library/"]) return path;
-    NSString *prefix = @"";
-    if ([[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"]) {
-        prefix = @"/var/jb";
-    } else {
-        NSArray *candidates = [[NSFileManager defaultManager]
-            contentsOfDirectoryAtPath:@"/var/containers/Bundle/Application" error:nil];
-        for (NSString *c in candidates) {
-            if ([c hasPrefix:@".jbroot-"]) {
-                prefix = [@"/var/containers/Bundle/Application" stringByAppendingPathComponent:c];
-                break;
-            }
-        }
-    }
-    return prefix.length ? [prefix stringByAppendingString:path] : path;
-}
-
 static NSString *const TCReloadDarwinName = @"com.susudear.themecore.reload";
 
 @implementation TCRootListController
